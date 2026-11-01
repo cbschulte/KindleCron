@@ -97,6 +97,32 @@ jobs:
           grep -n -A8 -B8 \
             'eips\.' cli.go || true
 
+      - name: Test KindleCron compatibility build
+        working-directory: kron-compat
+        shell: bash
+        run: |
+          echo "=== Go version ==="
+          go version
+          echo
+
+          echo "=== Module dependencies ==="
+          go mod download
+          echo
+
+          echo "=== Tests ==="
+          go test ./...
+          echo
+
+          echo "=== ARMv5 build ==="
+          mkdir -p ../compat-output
+          GOOS=linux GOARCH=arm GOARM=5 CGO_ENABLED=0 \
+            go build -o ../compat-output/kron .
+          echo
+
+          echo "=== Binary info ==="
+          file ../compat-output/kron
+          ls -lh ../compat-output/kron
+
       # 4. Unveränderten Referenz-Build vorbereiten
       - name: Go Setup (KindleCron Reference)
         uses: actions/setup-go@v6
