@@ -20,31 +20,17 @@ jobs:
         with:
           go-version-file: kron/go.mod
 
-      - name: Build Runtime Probe
+      - name: Build Filesystem Probe
+        working-directory: probe
         run: |
-          mkdir -p probe
-          cd probe
-          go mod init probe
-
-          cat > main.go <<'EOF'
-          package main
-
-          import (
-              "fmt"
-              "os"
-              "time"
-          )
-
-          func main() {
-              fmt.Println("probe: start")
-              fmt.Println("probe: args", os.Args)
-              fmt.Println("probe: time", time.Now())
-              fmt.Println("probe: done")
-          }
-          EOF
-
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
-            go build -o ../probe-arm .
+            go build -o ../probe-fs .
+
+      - name: Upload Filesystem Probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindle-filesystem-probe
+          path: probe-fs
 
       - name: Upload Probe
         uses: actions/upload-artifact@v4
