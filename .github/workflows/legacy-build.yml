@@ -20,26 +20,28 @@ jobs:
         with:
           go-version-file: kron/go.mod
 
+      # Build the filesystem diagnostic probe
       - name: Build Filesystem Probe
         working-directory: probe
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
             go build -o ../probe-fs .
 
+      - name: Verify Filesystem Probe
+        run: |
+          test -f probe-fs
+          file probe-fs
+          sha256sum probe-fs
+
       - name: Upload Filesystem Probe
         uses: actions/upload-artifact@v4
         with:
           name: kindle-filesystem-probe
           path: probe-fs
-
-      - name: Upload Probe
-        uses: actions/upload-artifact@v4
-        with:
-          name: kindle-runtime-probe
-          path: probe-arm
           if-no-files-found: error
           retention-days: 14
 
+      # Download dependencies and run tests
       - name: Dependencies
         working-directory: kron
         run: go mod download
@@ -48,6 +50,7 @@ jobs:
         working-directory: kron
         run: go test ./...
 
+      # Build reference KindleCron ARM binary
       - name: Build Reference
         working-directory: kron
         run: |
