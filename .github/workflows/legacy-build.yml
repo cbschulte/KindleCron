@@ -46,6 +46,16 @@ jobs:
           sed -i 's/^go 1\.26$/go 1.21/' kron-compat/go.mod
           grep -n '^go ' kron-compat/go.mod
 
+      - name: Inspect kindle-utils dependency
+        working-directory: kron-compat
+        run: |
+          echo "=== Dependency declaration ==="
+          grep -n -A4 -B2 'kindle-utils' go.mod go.sum || true
+      
+          echo "=== Direct imports ==="
+          grep -R -n 'github.com/lennardollesch/kindle-utils' \
+            --include='*.go' .
+
       - name: Build KindleCron Go 1.21 test
         working-directory: kron-compat
         run: |
