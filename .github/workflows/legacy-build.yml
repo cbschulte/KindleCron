@@ -20,6 +20,40 @@ jobs:
         with:
           go-version-file: kron/go.mod
 
+      - name: Build Runtime Probe
+        run: |
+          mkdir -p probe
+          cd probe
+          go mod init probe
+
+          cat > main.go <<'EOF'
+          package main
+
+          import (
+              "fmt"
+              "os"
+              "time"
+          )
+
+          func main() {
+              fmt.Println("probe: start")
+              fmt.Println("probe: args", os.Args)
+              fmt.Println("probe: time", time.Now())
+              fmt.Println("probe: done")
+          }
+          EOF
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+            go build -o ../probe-arm .
+
+      - name: Upload Probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindle-runtime-probe
+          path: probe-arm
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Dependencies
         working-directory: kron
         run: go mod download
