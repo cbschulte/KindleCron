@@ -40,12 +40,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Prepare KindleCron compatibility copy
-        run: |
-          cp -a kron kron-compat
-          sed -i 's/^go 1\.26$/go 1.21/' kron-compat/go.mod
-          grep -n '^go ' kron-compat/go.mod
-
       - name: Inspect kindle-utils dependency
         working-directory: kron-compat
         run: |
@@ -69,19 +63,6 @@ jobs:
           echo "=== All Go imports ==="
           grep -R -n '"github.com/lennardollesch' \
             --include='*.go' .
-
-      - name: Build KindleCron Go 1.21 test
-        working-directory: kron-compat
-        run: |
-          mkdir -p ../dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
-            go build -o ../dist/kron-121 .
-
-      - name: Verify KindleCron Go 1.21 test
-        run: |
-          test -f dist/kron-121
-          file dist/kron-121
-          sha256sum dist/kron-121
 
       - name: Go Setup (KindleCron)
         uses: actions/setup-go@v6
