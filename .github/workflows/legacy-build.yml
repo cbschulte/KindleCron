@@ -56,6 +56,20 @@ jobs:
           grep -R -n 'github.com/lennardollesch/kindle-utils' \
             --include='*.go' .
 
+      - name: Inspect KindleCron imports
+        working-directory: kron-compat
+        run: |
+          echo "=== kindle-utils imports ==="
+          grep -R -n -E 'kindle-utils|kindle_utils' \
+            --include='*.go' .
+      
+          echo "=== Dependency declaration ==="
+          grep -n -A5 -B2 'kindle-utils' go.mod
+      
+          echo "=== All Go imports ==="
+          grep -R -n '"github.com/lennardollesch' \
+            --include='*.go' .
+
       - name: Build KindleCron Go 1.21 test
         working-directory: kron-compat
         run: |
