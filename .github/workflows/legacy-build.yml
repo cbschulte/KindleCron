@@ -97,6 +97,22 @@ jobs:
           grep -n -A8 -B8 \
             'eips\.' cli.go || true
 
+      - name: Remove obsolete compatibility dependency
+        working-directory: kron-compat
+        shell: bash
+        run: |
+          echo "=== Remove kindle-utils ==="
+          go mod edit -droprequire=github.com/lennardollesch/kindle-utils
+
+          echo "=== Updated go.mod ==="
+          cat go.mod
+
+          echo "=== Tidy dependencies ==="
+          go mod tidy
+
+          echo "=== Final go.mod ==="
+          cat go.mod
+
       - name: Test KindleCron compatibility build
         working-directory: kron-compat
         shell: bash
