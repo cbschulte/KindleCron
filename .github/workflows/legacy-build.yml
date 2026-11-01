@@ -15,29 +15,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Go Setup (KindleCron Test)
+      - name: Go Setup (Legacy Probe)
         uses: actions/setup-go@v6
         with:
           go-version: '1.21.13'
-      
-      - name: Build KindleCron Test
-        working-directory: kron
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
-            go build -o ../dist/kron-121 .
       
       - name: Build Filesystem Probe
         working-directory: probe
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
             go build -o ../probe-fs .
-
+      
       - name: Verify Filesystem Probe
         run: |
           test -f probe-fs
           file probe-fs
           sha256sum probe-fs
-
+      
       - name: Upload Filesystem Probe
         uses: actions/upload-artifact@v4
         with:
@@ -45,6 +39,25 @@ jobs:
           path: probe-fs
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare KindleCron compatibility copy
+        run: |
+          cp -a kron kron-compat
+          sed -i 's/^go 1\.26$/go 1.21/' kron-compat/go.mod
+          grep -n '^go ' kron-compat/go.mod
+
+      - name: Build KindleCron Go 1.21 test
+        working-directory: kron-compat
+        run: |
+          mkdir -p ../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+            go build -o ../dist/kron-121 .
+
+      - name: Verify KindleCron Go 1.21 test
+        run: |
+          test -f dist/kron-121
+          file dist/kron-121
+          sha256sum dist/kron-121
 
       - name: Go Setup (KindleCron)
         uses: actions/setup-go@v6
