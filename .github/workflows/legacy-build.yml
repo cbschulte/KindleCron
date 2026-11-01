@@ -174,3 +174,10 @@ jobs:
           path: dist/kron-reference
           if-no-files-found: error
           retention-days: 14
+          
+      - name: Upload KindleCron compatibility binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindlecron-compat-armv5
+          path: compat-output/kron
+          if-no-files-found: error
