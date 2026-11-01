@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lennardollesch/kindle-utils/eips"
+	"os/exec"
 )
 
 const (
@@ -23,7 +23,13 @@ const (
 // display via the shared kindle-utils eips package. Best-effort: it returns the
 // error (e.g. off-device) for the caller to handle.
 func drawOnScreen(text string) error {
-	return eips.DrawBoxedText(text, eips.AlignCenter, eipsVerticalFraction, eipsPadding)
+    cmd := exec.Command("eips", "0", "0", text)
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        return fmt.Errorf("eips failed: %w: %s",
+            err, strings.TrimSpace(string(output)))
+    }
+    return nil
 }
 
 // drawIf shows text on the Kindle screen when eipsOut is set, reporting a draw
