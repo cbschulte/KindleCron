@@ -64,22 +64,38 @@ jobs:
       # 3. Import und Funktionsverwendung untersuchen
       - name: Inspect KindleCron compatibility copy
         working-directory: kron-compat
+        shell: bash
         run: |
-          echo "=== kindle-utils imports ==="
-          grep -R -n 'github.com/lennardollesch/kindle-utils' \
-            --include='*.go' .
+          echo "=== Working directory ==="
+          pwd
+          echo
 
-          echo "=== go.mod ==="
+          echo "=== Files ==="
+          ls -la
+          echo
+
+          echo "=== Go module ==="
           cat go.mod
+          echo
 
-          echo "=== cli.go imports ==="
-          sed -n '1,100p' cli.go
+          echo "=== kindle-utils imports ==="
+          grep -R -n \
+            'github.com/lennardollesch/kindle-utils' \
+            --include='*.go' . || true
+          echo
+
+          echo "=== cli.go, first 120 lines ==="
+          sed -n '1,120p' cli.go
+          echo
 
           echo "=== drawOnScreen references ==="
-          grep -n -A35 -B8 'drawOnScreen' cli.go || true
+          grep -n -A35 -B8 \
+            'drawOnScreen' cli.go || true
+          echo
 
           echo "=== eips references ==="
-          grep -n -A8 -B8 'eips\.' cli.go || true
+          grep -n -A8 -B8 \
+            'eips\.' cli.go || true
 
       # 4. Unveränderten Referenz-Build vorbereiten
       - name: Go Setup (KindleCron Reference)
