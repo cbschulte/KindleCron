@@ -1,0 +1,51 @@
+name: Kindle Legacy Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference-build:
+    name: Reference ARM Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Go Setup
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: kron/go.mod
+
+      - name: Dependencies
+        working-directory: kron
+        run: go mod download
+
+      - name: Tests
+        working-directory: kron
+        run: go test ./...
+
+      - name: Build Reference
+        working-directory: kron
+        run: |
+          mkdir -p ../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+            go build -trimpath -ldflags="-s -w" \
+            -o ../dist/kron-reference .
+
+      - name: Collect diagnostics
+        run: |
+          go version
+          file dist/kron-reference
+          sha256sum dist/kron-reference
+
+      - name: Upload Reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindlecron-reference-arm
+          path: dist/kron-reference
+          if-no-files-found: error
+          retention-days: 14
