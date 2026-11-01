@@ -15,23 +15,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 1. Filesystem-Probe mit bewährter Go-Version
       - name: Go Setup (Legacy Probe)
         uses: actions/setup-go@v6
         with:
           go-version: '1.21.13'
-      
+
       - name: Build Filesystem Probe
         working-directory: probe
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
             go build -o ../probe-fs .
-      
+
       - name: Verify Filesystem Probe
         run: |
           test -f probe-fs
           file probe-fs
           sha256sum probe-fs
-      
+
       - name: Upload Filesystem Probe
         uses: actions/upload-artifact@v4
         with:
@@ -40,36 +41,52 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Inspect kindle-utils dependency
-        working-directory: kron-compat
+      # 2. Temporäre KindleCron-Kopie erstellen
+      - name: Prepare KindleCron compatibility copy
         run: |
-          echo "=== Dependency declaration ==="
-          grep -n -A4 -B2 'kindle-utils' go.mod go.sum || true
-      
-          echo "=== Direct imports ==="
-          grep -R -n 'github.com/lennardollesch/kindle-utils' \
-            --include='*.go' .
+          set -eu
+          cp -a kron kron-compat
 
-      - name: Inspect KindleCron imports
+          echo "=== Original go.mod ==="
+          cat kron/go.mod
+
+          echo "=== Compatibility go.mod before ==="
+          cat kron-compat/go.mod
+
+          sed -i 's/^go 1\.26$/go 1.21/' kron-compat/go.mod
+
+          echo "=== Compatibility go.mod after ==="
+          cat kron-compat/go.mod
+
+          test -f kron-compat/cli.go
+          test -f kron-compat/go.mod
+
+      # 3. Import und Funktionsverwendung untersuchen
+      - name: Inspect KindleCron compatibility copy
         working-directory: kron-compat
         run: |
           echo "=== kindle-utils imports ==="
-          grep -R -n -E 'kindle-utils|kindle_utils' \
-            --include='*.go' .
-      
-          echo "=== Dependency declaration ==="
-          grep -n -A5 -B2 'kindle-utils' go.mod
-      
-          echo "=== All Go imports ==="
-          grep -R -n '"github.com/lennardollesch' \
+          grep -R -n 'github.com/lennardollesch/kindle-utils' \
             --include='*.go' .
 
-      - name: Go Setup (KindleCron)
+          echo "=== go.mod ==="
+          cat go.mod
+
+          echo "=== cli.go imports ==="
+          sed -n '1,100p' cli.go
+
+          echo "=== drawOnScreen references ==="
+          grep -n -A35 -B8 'drawOnScreen' cli.go || true
+
+          echo "=== eips references ==="
+          grep -n -A8 -B8 'eips\.' cli.go || true
+
+      # 4. Unveränderten Referenz-Build vorbereiten
+      - name: Go Setup (KindleCron Reference)
         uses: actions/setup-go@v6
         with:
           go-version-file: kron/go.mod
 
-      # Download dependencies and run tests
       - name: Dependencies
         working-directory: kron
         run: go mod download
@@ -78,7 +95,6 @@ jobs:
         working-directory: kron
         run: go test ./...
 
-      # Build reference KindleCron ARM binary
       - name: Build Reference
         working-directory: kron
         run: |
