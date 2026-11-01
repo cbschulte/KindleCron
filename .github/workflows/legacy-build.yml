@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Go Setup
+      - name: Go Setup (Legacy Probe)
         uses: actions/setup-go@v6
         with:
           go-version: '1.19.13'
@@ -39,6 +39,11 @@ jobs:
           path: probe-fs
           if-no-files-found: error
           retention-days: 14
+
+      - name: Go Setup (KindleCron)
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: kron/go.mod
 
       # Download dependencies and run tests
       - name: Dependencies
