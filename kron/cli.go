@@ -243,57 +243,56 @@ func cmdClearLogs(args []string, eipsOut bool) {
 			fmt.Fprintf(os.Stderr, "warning: could not clear %s: %v\n", filepath.Join(baseDir, "kron.log"), err)
 		}
 	} else {
-		os.Truncate(filepath.Join(baseDir, "kron.log"), 0)
+	    logPath := filepath.Join(baseDir, "kron.log")
+	    if err := os.Truncate(logPath, 0); err != nil && !os.IsNotExist(err) {
+	        fmt.Fprintf(os.Stderr, "warning: could not clear %s: %v\n", logPath, err)
+	    }
 	}
-// Per-job logs: state/<name>.log
-removed := 0
 
-dirFD, err := syscall.Open(
-    stateDir,
-    syscall.O_RDONLY,
-    0,
-)
+	// Per-job logs: state/<name>.log
+	removed := 0
 
-if err == nil {
-    buf := make([]byte, 8192)
+	dirFD, err := syscall.Open(stateDir, syscall.O_RDONLY, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not open state directory %s: %v\n", stateDir, err)
+	} else {
+		buf := make([]byte, 8192)
 
-    for {
-        n, readErr := syscall.ReadDirent(dirFD, buf)
-        if readErr != nil || n <= 0 {
-            break
-        }
+		for {
+			n, readErr := syscall.ReadDirent(dirFD, buf)
+			if readErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not read state directory: %v\n", readErr)
+				break
+			}
+			if n <= 0 {
+				break
+			}
 
-        names, _, parseErr := syscall.ParseDirent(
-            buf[:n],
-            -1,
-            nil,
-        )
+			names, _, parseErr := syscall.ParseDirent(buf[:n], -1, nil)
+			if parseErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not parse directory entries: %v\n", parseErr)
+				break
+			}
 
-        if parseErr != nil {
-            break
-        }
+			for _, name := range names {
+				if !strings.HasSuffix(name, ".log") {
+					continue
+				}
 
-        for _, name := range names {
-            if !strings.HasSuffix(name, ".log") {
-                continue
-            }
+				logPath := filepath.Join(stateDir, name)
+				if err := os.Remove(logPath); err == nil {
+					removed++
+				} else {
+					fmt.Fprintf(os.Stderr, "warning: could not remove %s: %v\n", logPath, err)
+				}
+			}
+		}
 
-            logPath := filepath.Join(stateDir, name)
+		if err := syscall.Close(dirFD); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not close state directory: %v\n", err)
+		}
+	}
 
-            if err := os.Remove(logPath); err == nil {
-                removed++
-            }
-        }
-    }
-
-    syscall.Close(dirFD)
-}
-
-showText(
-    eipsOut,
-    "cleared kron.log and removed %d per-job log(s)",
-    removed,
-)
 	showText(eipsOut, "cleared kron.log and removed %d per-job log(s)", removed)
 }
 
