@@ -30,9 +30,23 @@ type job struct {
 // jobFiles returns the paths of all .job files in jobs.d, sorted by name so the
 // evaluation order is stable from run to run.
 func jobFiles() []string {
-	matches, _ := filepath.Glob(filepath.Join(jobsDir, "*.job"))
-	sort.Strings(matches)
-	return matches
+    entries, err := os.ReadDir(jobsDir)
+    if err != nil {
+        return nil
+    }
+
+    matches := make([]string, 0)
+
+    for _, entry := range entries {
+        name := entry.Name()
+
+        if strings.HasSuffix(name, ".job") {
+            matches = append(matches, filepath.Join(jobsDir, name))
+        }
+    }
+
+    sort.Strings(matches)
+    return matches
 }
 
 // readJob parses one .job file. It never fails: a file that cannot be read or
