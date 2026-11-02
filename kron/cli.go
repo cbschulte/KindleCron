@@ -268,11 +268,7 @@ func cmdClearLogs(args []string, eipsOut bool) {
 				break
 			}
 
-			names, _, parseErr := syscall.ParseDirent(buf[:n], -1, nil)
-			if parseErr != nil {
-				fmt.Fprintf(os.Stderr, "warning: could not parse directory entries: %v\n", parseErr)
-				break
-			}
+			_, _, names := syscall.ParseDirent(buf[:n], -1, nil)
 
 			for _, name := range names {
 				if !strings.HasSuffix(name, ".log") {
