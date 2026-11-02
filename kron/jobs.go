@@ -30,6 +30,7 @@ type job struct {
 
 // jobFiles returns the paths of all .job files in jobs.d, sorted by name so the
 // evaluation order is stable from run to run.
+
 func jobFiles() []string {
     fd, err := syscall.Open(
         jobsDir,
@@ -50,12 +51,9 @@ func jobFiles() []string {
             break
         }
 
-        names, _, parseErr := syscall.ParseDirent(
+        _, _, names := syscall.ParseDirent(
             buf[:n], -1, nil,
         )
-        if parseErr != nil {
-            break
-        }
 
         for _, name := range names {
             if strings.HasSuffix(name, ".job") {
