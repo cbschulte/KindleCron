@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -30,18 +31,39 @@ type job struct {
 // jobFiles returns the paths of all .job files in jobs.d, sorted by name so the
 // evaluation order is stable from run to run.
 func jobFiles() []string {
-    entries, err := os.ReadDir(jobsDir)
+    fd, err := syscall.Open(
+        jobsDir,
+        syscall.O_RDONLY|syscall.O_DIRECTORY,
+        0,
+    )
     if err != nil {
         return nil
     }
+    defer syscall.Close(fd)
 
+    buf := make([]byte, 4096)
     matches := make([]string, 0)
 
-    for _, entry := range entries {
-        name := entry.Name()
+    for {
+        n, err := syscall.ReadDirent(fd, buf)
+        if err != nil || n == 0 {
+            break
+        }
 
-        if strings.HasSuffix(name, ".job") {
-            matches = append(matches, filepath.Join(jobsDir, name))
+        names, _, parseErr := syscall.ParseDirent(
+            buf[:n], -1, nil,
+        )
+        if parseErr != nil {
+            break
+        }
+
+        for _, name := range names {
+            if strings.HasSuffix(name, ".job") {
+                matches = append(
+                    matches,
+                    filepath.Join(jobsDir, name),
+                )
+            }
         }
     }
 
