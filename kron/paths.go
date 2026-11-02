@@ -86,13 +86,11 @@ func (writer bestEffort) Write(p []byte) (int, error) {
 // initLog points the package logger at kron.log and stderr. If the log file
 // cannot be opened, logging continues to stderr alone.
 func initLog() {
-	var writer io.Writer = bestEffort{os.Stderr}
-	path := filepath.Join(baseDir, "kron.log")
-	if capped, err := newCappedFile(path, logMaxBytes); err == nil {
-		logFile = capped
-		writer = io.MultiWriter(bestEffort{capped}, bestEffort{os.Stderr})
-	}
-	logger = log.New(writer, "kron ", log.LstdFlags)
+    logger = log.New(
+        bestEffort{os.Stderr},
+        "kron ",
+        log.LstdFlags,
+    )
 }
 
 // logf writes one timestamped line to the log. It is a no-op before initPaths
