@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"os/exec"
@@ -244,14 +245,55 @@ func cmdClearLogs(args []string, eipsOut bool) {
 	} else {
 		os.Truncate(filepath.Join(baseDir, "kron.log"), 0)
 	}
-	// Per-job logs: state/<name>.log
-	logs, _ := filepath.Glob(filepath.Join(stateDir, "*.log"))
-	removed := 0
-	for _, logPath := range logs {
-		if err := os.Remove(logPath); err == nil {
-			removed++
-		}
-	}
+// Per-job logs: state/<name>.log
+removed := 0
+
+dirFD, err := syscall.Open(
+    stateDir,
+    syscall.O_RDONLY,
+    0,
+)
+
+if err == nil {
+    buf := make([]byte, 8192)
+
+    for {
+        n, readErr := syscall.ReadDirent(dirFD, buf)
+        if readErr != nil || n <= 0 {
+            break
+        }
+
+        names, _, parseErr := syscall.ParseDirent(
+            buf[:n],
+            -1,
+            nil,
+        )
+
+        if parseErr != nil {
+            break
+        }
+
+        for _, name := range names {
+            if !strings.HasSuffix(name, ".log") {
+                continue
+            }
+
+            logPath := filepath.Join(stateDir, name)
+
+            if err := os.Remove(logPath); err == nil {
+                removed++
+            }
+        }
+    }
+
+    syscall.Close(dirFD)
+}
+
+showText(
+    eipsOut,
+    "cleared kron.log and removed %d per-job log(s)",
+    removed,
+)
 	showText(eipsOut, "cleared kron.log and removed %d per-job log(s)", removed)
 }
 
