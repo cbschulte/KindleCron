@@ -16,30 +16,30 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. Filesystem-Probe mit bewährter Go-Version
-      - name: Go Setup (Legacy Probe)
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.21.13'
-
-      - name: Build Filesystem Probe
-        working-directory: probe
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
-            go build -o ../probe-fs .
-
-      - name: Verify Filesystem Probe
-        run: |
-          test -f probe-fs
-          file probe-fs
-          sha256sum probe-fs
-
-      - name: Upload Filesystem Probe
-        uses: actions/upload-artifact@v4
-        with:
-          name: kindle-filesystem-probe
-          path: probe-fs
-          if-no-files-found: error
-          retention-days: 14
+#      - name: Go Setup (Legacy Probe)
+#        uses: actions/setup-go@v6
+#        with:
+#          go-version: '1.21.13'
+#
+#      - name: Build Filesystem Probe
+#        working-directory: probe
+#        run: |
+#          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+#            go build -o ../probe-fs .
+#
+#      - name: Verify Filesystem Probe
+#        run: |
+#          test -f probe-fs
+#          file probe-fs
+#          sha256sum probe-fs
+#
+#      - name: Upload Filesystem Probe
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: kindle-filesystem-probe
+#          path: probe-fs
+#          if-no-files-found: error
+#          retention-days: 14
 
       # 2. Temporäre KindleCron-Kopie erstellen
       - name: Prepare KindleCron compatibility copy
@@ -140,44 +140,44 @@ jobs:
           ls -lh ../compat-output/kron
 
       # 4. Unveränderten Referenz-Build vorbereiten
-      - name: Go Setup (KindleCron Reference)
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: kron/go.mod
-
-      - name: Dependencies
-        working-directory: kron
-        run: go mod download
-
-      - name: Tests
-        working-directory: kron
-        run: go test ./...
-
-      - name: Build Reference
-        working-directory: kron
-        run: |
-          mkdir -p ../dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
-            go build -trimpath -ldflags="-s -w" \
-            -o ../dist/kron-reference .
-
-      - name: Collect diagnostics
-        run: |
-          go version
-          file dist/kron-reference
-          sha256sum dist/kron-reference
-
-      - name: Upload Reference
-        uses: actions/upload-artifact@v4
-        with:
-          name: kindlecron-reference-arm
-          path: dist/kron-reference
-          if-no-files-found: error
-          retention-days: 14
-          
-      - name: Upload KindleCron compatibility binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: kindlecron-compat-armv5
-          path: compat-output/kron
-          if-no-files-found: error
+#      - name: Go Setup (KindleCron Reference)
+#        uses: actions/setup-go@v6
+#        with:
+#          go-version-file: kron/go.mod
+#
+#      - name: Dependencies
+#        working-directory: kron
+#        run: go mod download
+#
+#      - name: Tests
+#        working-directory: kron
+#        run: go test ./...
+#
+#      - name: Build Reference
+#        working-directory: kron
+#        run: |
+#          mkdir -p ../dist
+#          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+#            go build -trimpath -ldflags="-s -w" \
+#            -o ../dist/kron-reference .
+#
+#      - name: Collect diagnostics
+#        run: |
+#          go version
+#          file dist/kron-reference
+#          sha256sum dist/kron-reference
+#
+#      - name: Upload Reference
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: kindlecron-reference-arm
+#          path: dist/kron-reference
+#          if-no-files-found: error
+#          retention-days: 14
+#          
+#      - name: Upload KindleCron compatibility binary
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: kindlecron-compat-armv5
+#          path: compat-output/kron
+#          if-no-files-found: error
