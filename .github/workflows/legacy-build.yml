@@ -139,6 +139,33 @@ jobs:
           file ../compat-output/kron
           ls -lh ../compat-output/kron
 
+      - name: Verify and upload KindleCron compatibility binary
+        shell: bash
+        run: |
+          set -eu
+          test -s compat-output/kron
+
+          echo "=== Build identity ==="
+          git rev-parse HEAD
+          echo
+
+          echo "=== Binary information ==="
+          file compat-output/kron
+          ls -lh compat-output/kron
+          sha256sum compat-output/kron
+          echo
+
+          echo "=== Embedded build info ==="
+          go version -m compat-output/kron || true
+
+      - name: Upload KindleCron compatibility binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindlecron-compat-armv5
+          path: compat-output/kron
+          if-no-files-found: error
+          retention-days: 14
+
       # 4. Unveränderten Referenz-Build vorbereiten
 #      - name: Go Setup (KindleCron Reference)
 #        uses: actions/setup-go@v6
