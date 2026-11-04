@@ -92,20 +92,60 @@ func findMntroot() string {
 // acquireSingleton takes an exclusive, non-blocking advisory lock on path. The
 // returned file must stay open to hold the lock; closing it (or process exit)
 // releases it. ok=false means another instance already holds it.
+
 func acquireSingleton(path string) (*os.File, bool) {
-	lockFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	fd, err := syscall.Open(
+		path,
+		syscall.O_CREAT|syscall.O_RDWR,
+		0644,
+	)
 	if err != nil {
 		return nil, false
 	}
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		lockFile.Close()
+
+	// Exclusive, non-blocking singleton lock.
+	if err := syscall.Flock(
+		fd,
+		syscall.LOCK_EX|syscall.LOCK_NB,
+	); err != nil {
+		syscall.Close(fd)
 		return nil, false
 	}
-	// Record the holder's pid in the file so `kron stop` knows whom to signal.
-	lockFile.Truncate(0)
-	lockFile.Seek(0, 0)
-	lockFile.WriteString(strconv.Itoa(os.Getpid()) + "\n")
-	lockFile.Sync()
+
+	// Record PID using direct syscalls.
+	if err := syscall.Ftruncate(fd, 0); err != nil {
+		syscall.Close(fd)
+		return nil, false
+	}
+
+	if _, err := syscall.Seek(fd, 0, 0); err != nil {
+		syscall.Close(fd)
+		return nil, false
+	}
+
+	pidText := strconv.Itoa(os.Getpid()) + "\n"
+	data := []byte(pidText)
+
+	for len(data) > 0 {
+		n, err := syscall.Write(fd, data)
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil || n <= 0 {
+			syscall.Close(fd)
+			return nil, false
+		}
+		data = data[n:]
+	}
+
+	// No os.File.Sync() here.
+	// The singleton lock is held by the open descriptor.
+	lockFile := os.NewFile(uintptr(fd), path)
+	if lockFile == nil {
+		syscall.Close(fd)
+		return nil, false
+	}
+
 	return lockFile, true
 }
 
