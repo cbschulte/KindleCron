@@ -145,28 +145,85 @@ func setLastRun(name string, stamp time.Time) {
 // directory (a rename is only atomic within one filesystem), is flushed to
 // storage, and only then replaces the target. If the device loses power at any
 // point, path still holds either the complete old or the complete new content.
+
 func atomicWrite(path string, data []byte) error {
-	tempFile, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+
+	// Create a unique temporary file in the same directory.
+	// Avoid os.CreateTemp: it can trigger Go's broken netpoll
+	// compatibility path on the old Kindle kernel.
+	var fd int
+	var tempPath string
+	var err error
+
+	for i := 0; i < 100; i++ {
+		tempPath = filepath.Join(
+			dir,
+			"."+base+".tmp-"+
+				strconv.Itoa(syscall.Getpid())+"-"+
+				strconv.Itoa(i),
+		)
+
+		fd, err = syscall.Open(
+			tempPath,
+			syscall.O_WRONLY|syscall.O_CREAT|syscall.O_EXCL,
+			0644,
+		)
+
+		if err == nil {
+			break
+		}
+		if err != syscall.EEXIST {
+			return err
+		}
+	}
+
 	if err != nil {
 		return err
 	}
-	tempPath := tempFile.Name()
-	tempFile.Chmod(0o644) // CreateTemp makes 0600; the state files are expected at 0644
-	if _, err := tempFile.Write(data); err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
+
+	// Remove the temporary file unless rename succeeds.
+	renamed := false
+	defer func() {
+		if !renamed {
+			_ = syscall.Unlink(tempPath)
+		}
+	}()
+
+	// Write all bytes, including partial writes.
+	for len(data) > 0 {
+		n, writeErr := syscall.Write(fd, data)
+		if writeErr == syscall.EINTR {
+			continue
+		}
+		if writeErr != nil {
+			_ = syscall.Close(fd)
+			return writeErr
+		}
+		if n == 0 {
+			_ = syscall.Close(fd)
+			return syscall.EIO
+		}
+		data = data[n:]
+	}
+
+	// Flush file contents before replacing the target.
+	if err := syscall.Fsync(fd); err != nil {
+		_ = syscall.Close(fd)
 		return err
 	}
-	if err := tempFile.Sync(); err != nil { // flush to storage before the rename
-		tempFile.Close()
-		os.Remove(tempPath)
+
+	if err := syscall.Close(fd); err != nil {
 		return err
 	}
-	if err := tempFile.Close(); err != nil {
-		os.Remove(tempPath)
+
+	if err := syscall.Rename(tempPath, path); err != nil {
 		return err
 	}
-	return os.Rename(tempPath, path)
+
+	renamed = true
+	return nil
 }
 
 // jobTimeoutMax is the default run-time limit for a job that does not set its own
