@@ -628,3 +628,42 @@ func removeJob(name string) {
 	os.Remove(lastPath(name))
 	os.Remove(logPath(name))
 }
+
+// cmdLockTest tests singleton locking without starting the daemon.
+func cmdLockTest() {
+	const testPath = "/mnt/us/kron-lock-test.lock"
+
+	// First process acquires the lock.
+	fd1, ok := acquireSingleton(testPath)
+	if !ok {
+		fmt.Println("FAIL: first lock acquisition failed")
+		return
+	}
+	fmt.Println("PASS: first lock acquired")
+
+	// Second acquisition must fail while the first lock is held.
+	fd2, ok := acquireSingleton(testPath)
+	if ok {
+		syscall.Close(fd2)
+		syscall.Close(fd1)
+		fmt.Println("FAIL: second lock was unexpectedly acquired")
+		return
+	}
+	fmt.Println("PASS: second lock correctly rejected")
+
+	// Release first lock.
+	if err := syscall.Close(fd1); err != nil {
+		fmt.Printf("FAIL: closing first lock: %v\n", err)
+		return
+	}
+	fmt.Println("PASS: first lock released")
+
+	// Third acquisition must succeed.
+	fd3, ok := acquireSingleton(testPath)
+	if !ok {
+		fmt.Println("FAIL: lock could not be reacquired")
+		return
+	}
+	syscall.Close(fd3)
+	fmt.Println("PASS: lock successfully reacquired")
+}
