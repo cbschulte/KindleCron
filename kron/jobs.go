@@ -74,27 +74,50 @@ func jobFiles() []string {
 // daemon skip it and `kron list` mark it INVALID.
 func readJob(path string) job {
 	parsed := job{name: strings.TrimSuffix(filepath.Base(path), ".job"), enabled: true}
-	file, err := os.Open(path)
+
+	fd, err := syscall.Open(path, syscall.O_RDONLY, 0)
 	if err != nil {
 		parsed.schedErr = err
 		return parsed
 	}
-	defer file.Close()
-	if info, err := file.Stat(); err == nil {
-		parsed.mtime = info.ModTime()
+	defer syscall.Close(fd)
+
+	var stat syscall.Stat_t
+	if err := syscall.Fstat(fd, &stat); err == nil {
+		parsed.mtime = time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)
 	}
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(strings.TrimRight(scanner.Text(), "\r"))
+
+	var data []byte
+	buf := make([]byte, 4096)
+
+	for {
+		n, readErr := syscall.Read(fd, buf)
+		if n > 0 {
+			data = append(data, buf[:n]...)
+		}
+		if readErr != nil {
+			parsed.schedErr = readErr
+			return parsed
+		}
+		if n == 0 {
+			break
+		}
+	}
+
+	for _, rawLine := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(strings.TrimRight(rawLine, "\r"))
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+
 		equalIndex := strings.IndexByte(line, '=')
 		if equalIndex < 0 {
 			continue
 		}
+
 		key := strings.TrimSpace(line[:equalIndex])
 		val := strings.TrimSpace(line[equalIndex+1:])
+
 		switch key {
 		case "schedule":
 			parsed.schedRaw = val
@@ -108,11 +131,13 @@ func readJob(path string) job {
 			}
 		}
 	}
+
 	if parsed.schedRaw == "" {
 		parsed.schedErr = fmt.Errorf("no schedule")
 	} else {
 		parsed.sched, parsed.schedErr = parseSchedule(parsed.schedRaw)
 	}
+
 	return parsed
 }
 
