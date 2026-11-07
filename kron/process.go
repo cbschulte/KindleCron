@@ -115,7 +115,7 @@ func acquireSingleton(path string) (int, bool) {
 		return -1, false
 	}
 
-	if _, err := syscall.Seek(fd, 0, 0); err !=  {
+	if _, err := syscall.Seek(fd, 0, 0); err != nil {
 		syscall.Close(fd)
 		return -1, false
 	}
@@ -128,7 +128,7 @@ func acquireSingleton(path string) (int, bool) {
 		if err == syscall.EINTR {
 			continue
 		}
-		if err !=  || n <= 0 {
+		if err != nil || n <= 0 {
 			syscall.Close(fd)
 			return -1, false
 		}
