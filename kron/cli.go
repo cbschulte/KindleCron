@@ -667,3 +667,52 @@ func cmdLockTest() {
 	syscall.Close(fd3)
 	fmt.Println("PASS: lock successfully reacquired")
 }
+
+// cmdLockHeldTest tests lockHeld without starting the daemon.
+func cmdLockHeldTest() {
+    const testPath = "/mnt/us/kron-lock-held-test.lock"
+
+    // No process should hold this test lock initially.
+    if lockHeld(testPath) {
+        fmt.Println("FAIL: lock reported held unexpectedly")
+        return
+    }
+    fmt.Println("PASS: no lock reported")
+
+    // Acquire the lock using a separate file descriptor.
+    fd, err := syscall.Open(
+        testPath,
+        syscall.O_RDWR|syscall.O_CREAT,
+        0600,
+    )
+    if err != nil {
+        fmt.Printf("FAIL: opening test lock: %v\n", err)
+        return
+    }
+    defer syscall.Close(fd)
+
+    if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+        fmt.Printf("FAIL: acquiring test lock: %v\n", err)
+        return
+    }
+    fmt.Println("PASS: test lock acquired")
+
+    if !lockHeld(testPath) {
+        fmt.Println("FAIL: held lock not detected")
+        _ = syscall.Flock(fd, syscall.LOCK_UN)
+        return
+    }
+    fmt.Println("PASS: held lock detected")
+
+    if err := syscall.Flock(fd, syscall.LOCK_UN); err != nil {
+        fmt.Printf("FAIL: releasing test lock: %v\n", err)
+        return
+    }
+    fmt.Println("PASS: test lock released")
+
+    if lockHeld(testPath) {
+        fmt.Println("FAIL: released lock still reported held")
+        return
+    }
+    fmt.Println("PASS: released lock reported free")
+}
