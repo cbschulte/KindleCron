@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -142,7 +143,7 @@ func runDaemon(eipsOut bool) {
 		drawOrLog(eipsOut, "kron already running")
 		return
 	}
-	defer lock.Close()
+	defer syscall.Close(lock)
 
 	logf("scheduler starting (data dir %s)", baseDir)
 	drawOrLog(eipsOut, "kron daemon started")
@@ -170,7 +171,7 @@ func runDaemon(eipsOut bool) {
 		if killed := dm.killRunningJobs(); killed > 0 {
 			logf("terminated %d running job(s) on shutdown", killed)
 		}
-		lock.Close()
+		syscall.Close(lock)
 		os.Exit(0)
 	}()
 
