@@ -84,7 +84,7 @@ func readJob(path string) job {
 
 	var stat syscall.Stat_t
 	if err := syscall.Fstat(fd, &stat); err == nil {
-		parsed.mtime = time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)
+		parsed.mtime = time.Unix(int64(stat.Mtim.Sec), int64(stat.Mtim.Nsec))
 	}
 
 	var data []byte
