@@ -220,6 +220,8 @@ func main() {
 	}
 
 	switch cmd {
+	case "lock-test":
+		cmdLockTest()		
 	case "daemon", "run":
 		runDaemon(eipsOut)
 	case "add":
