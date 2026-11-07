@@ -149,23 +149,21 @@ func signalStop(pid int) error {
 }
 
 // lockHeld reports whether a process currently holds the exclusive singleton lock
-// on path (i.e. the daemon is running). It opens the file and tries a non-blocking
-// exclusive lock: success means no one holds it (the lock is released again and the
-// file left untouched), failure means a daemon holds it. `kron stop` uses this to
-// avoid signalling a recycled pid from a stale lock file left by a crashed daemon.
+// on path. It opens the file and tries a non-blocking exclusive lock:
+// success means no one holds it; failure means a daemon holds it.
 func lockHeld(path string) bool {
-	lockFile, err := os.OpenFile(path, os.O_RDONLY, 0)
-	if err != nil {
-		return false
-	}
-	defer lockFile.Close()
+    fd, err := syscall.Open(path, syscall.O_RDONLY, 0)
+    if err != nil {
+        return false
+    }
+    defer syscall.Close(fd)
 
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return true
-	}
+    if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+        return true
+    }
 
-	syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
-	return false
+    _ = syscall.Flock(fd, syscall.LOCK_UN)
+    return false
 }
 
 // setProcessGroup makes the command start in its own process group, so the whole
