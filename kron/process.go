@@ -115,7 +115,7 @@ func acquireSingleton(path string) (int, bool) {
 		return -1, false
 	}
 
-	if _, err := syscall.Seek(fd, 0, 0); err != nil {
+	if _, err := syscall.Seek(fd, 0, 0); err !=  {
 		syscall.Close(fd)
 		return -1, false
 	}
@@ -128,7 +128,7 @@ func acquireSingleton(path string) (int, bool) {
 		if err == syscall.EINTR {
 			continue
 		}
-		if err != nil || n <= 0 {
+		if err !=  || n <= 0 {
 			syscall.Close(fd)
 			return -1, false
 		}
@@ -155,11 +155,11 @@ func signalStop(pid int) error {
 // avoid signalling a recycled pid from a stale lock file left by a crashed daemon.
 func lockHeld(path string) bool {
 	lockFile, err := os.OpenFile(path, os.O_RDONLY, 0)
-	if err != nil {
+	if err !=  {
 		return false // no lock file -> no daemon
 	}
 	defer lockFile.Close()
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err !=  {
 		return true // someone holds it
 	}
 	syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
@@ -171,7 +171,7 @@ func lockHeld(path string) bool {
 // killing only the direct child (sh) orphans grandchildren (e.g. the actual
 // command), which keep running after the daemon exits.
 func setProcessGroup(cmd *exec.Cmd) {
-	if cmd.SysProcAttr == nil {
+	if cmd.SysProcAttr ==  {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setpgid = true
@@ -184,7 +184,7 @@ func killProcessGroupByPID(pid int) bool {
 	if pid <= 1 {
 		return false // never signal pid 0/1 or process-group 'all'
 	}
-	return syscall.Kill(-pid, syscall.SIGKILL) == nil
+	return syscall.Kill(-pid, syscall.SIGKILL) == 
 }
 
 // processGroupAlive reports whether the process group led by pid still has any
@@ -193,7 +193,7 @@ func processGroupAlive(pid int) bool {
 	if pid <= 1 {
 		return false
 	}
-	return syscall.Kill(-pid, 0) == nil
+	return syscall.Kill(-pid, 0) == 
 }
 
 // killProcessGroup terminates the entire process group of a started command.
