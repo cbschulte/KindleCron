@@ -145,14 +145,33 @@ func readJob(path string) job {
 // unreadable stamp reads as the Unix epoch, which the schedule forms treat as
 // "never run".
 func getLastRun(name string) time.Time {
-	data, err := os.ReadFile(lastPath(name))
+	fd, err := syscall.Open(lastPath(name), syscall.O_RDONLY, 0)
 	if err != nil {
 		return time.Unix(0, 0)
 	}
+	defer syscall.Close(fd)
+
+	var data []byte
+	buf := make([]byte, 256)
+
+	for {
+		n, readErr := syscall.Read(fd, buf)
+		if n > 0 {
+			data = append(data, buf[:n]...)
+		}
+		if readErr != nil {
+			return time.Unix(0, 0)
+		}
+		if n == 0 {
+			break
+		}
+	}
+
 	seconds, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil {
 		return time.Unix(0, 0)
 	}
+
 	return time.Unix(seconds, 0)
 }
 
