@@ -89,38 +89,35 @@ func findMntroot() string {
 	return ""
 }
 
-// acquireSingleton takes an exclusive, non-blocking advisory lock on path. The
-// returned file must stay open to hold the lock; closing it (or process exit)
-// releases it. ok=false means another instance already holds it.
-
-func acquireSingleton(path string) (*os.File, bool) {
+// acquireSingleton takes an exclusive, non-blocking advisory lock on path.
+// The returned file descriptor must stay open to hold the lock.
+// ok=false means another instance already holds it.
+func acquireSingleton(path string) (int, bool) {
 	fd, err := syscall.Open(
 		path,
 		syscall.O_CREAT|syscall.O_RDWR,
 		0644,
 	)
 	if err != nil {
-		return nil, false
+		return -1, false
 	}
 
-	// Exclusive, non-blocking singleton lock.
 	if err := syscall.Flock(
 		fd,
 		syscall.LOCK_EX|syscall.LOCK_NB,
 	); err != nil {
 		syscall.Close(fd)
-		return nil, false
+		return -1, false
 	}
 
-	// Record PID using direct syscalls.
 	if err := syscall.Ftruncate(fd, 0); err != nil {
 		syscall.Close(fd)
-		return nil, false
+		return -1, false
 	}
 
 	if _, err := syscall.Seek(fd, 0, 0); err != nil {
 		syscall.Close(fd)
-		return nil, false
+		return -1, false
 	}
 
 	pidText := strconv.Itoa(os.Getpid()) + "\n"
@@ -133,20 +130,12 @@ func acquireSingleton(path string) (*os.File, bool) {
 		}
 		if err != nil || n <= 0 {
 			syscall.Close(fd)
-			return nil, false
+			return -1, false
 		}
 		data = data[n:]
 	}
 
-	// No os.File.Sync() here.
-	// The singleton lock is held by the open descriptor.
-	lockFile := os.NewFile(uintptr(fd), path)
-	if lockFile == nil {
-		syscall.Close(fd)
-		return nil, false
-	}
-
-	return lockFile, true
+	return fd, true
 }
 
 // shutdownSignals lists the signals that make the daemon shut down cleanly.
