@@ -716,3 +716,15 @@ func cmdLockHeldTest() {
     }
     fmt.Println("PASS: released lock reported free")
 }
+
+func cmdTimerTest() {
+	fmt.Println("Timer-Test startet ...")
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+
+	fmt.Println("Warte auf Timer (2 Sekunden) ...")
+	<-timer.C
+
+	fmt.Println("PASS: Timer wurde ausgelöst")
+}
