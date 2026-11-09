@@ -781,3 +781,36 @@ func cmdExecTest() {
     fmt.Printf("Ausgabe: %s", output)
     fmt.Println("PASS: Prozess gestartet und Ausgabe gelesen")
 }
+
+func cmdExecFileTest() {
+    path := "/mnt/us/kron-exec-file-test.txt"
+
+    fmt.Println("Exec-File-Test startet ...")
+
+    f, err := os.Create(path)
+    if err != nil {
+        fmt.Printf("FAIL: os.Create: %v\n", err)
+        return
+    }
+
+    _, err = f.WriteString("KronFileTest\n")
+    if err != nil {
+        f.Close()
+        fmt.Printf("FAIL: WriteString: %v\n", err)
+        return
+    }
+
+    if err := f.Close(); err != nil {
+        fmt.Printf("FAIL: Close: %v\n", err)
+        return
+    }
+
+    data, err := os.ReadFile(path)
+    if err != nil {
+        fmt.Printf("FAIL: os.ReadFile: %v\n", err)
+        return
+    }
+
+    fmt.Printf("Dateiinhalt: %s", data)
+    fmt.Println("PASS: Datei erstellt, beschrieben und gelesen")
+}
