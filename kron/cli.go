@@ -958,3 +958,49 @@ func cmdProcessGroupTest() {
 
     fmt.Println("PASS: Prozessgruppe beendet")
 }
+
+func cmdRunJobTest() {
+    fmt.Println("RunJob-Test startet ...")
+
+    entry := job{
+        name:    "kron-runjob-proof",
+        command: "echo KronRunJobTest; exit 0",
+    }
+
+    fmt.Println("Starte erfolgreichen Testjob ...")
+    code := runJob(entry, nil)
+
+    fmt.Printf("Exit-Code: %d\n", code)
+
+    if code != 0 {
+        fmt.Println("FAIL: Erfolgreicher Job lieferte keinen Exit-Code 0")
+        return
+    }
+
+    data, err := os.ReadFile(logPath(entry.name))
+    if err != nil {
+        fmt.Printf("FAIL: Logdatei nicht lesbar: %v\n", err)
+        return
+    }
+
+    if !strings.Contains(string(data), "KronRunJobTest") {
+        fmt.Println("FAIL: Ausgabe fehlt in der Job-Logdatei")
+        return
+    }
+
+    fmt.Println("PASS: Job ausgeführt und Logdatei geschrieben")
+
+    entry.command = "echo KronRunJobError; exit 7"
+
+    fmt.Println("Starte Fehler-Testjob ...")
+    code = runJob(entry, nil)
+
+    fmt.Printf("Exit-Code: %d\n", code)
+
+    if code != 7 {
+        fmt.Println("FAIL: Erwarteter Exit-Code 7 wurde nicht geliefert")
+        return
+    }
+
+    fmt.Println("PASS: Fehlercode korrekt erkannt")
+}
