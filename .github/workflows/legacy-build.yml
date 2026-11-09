@@ -118,6 +118,16 @@ jobs:
           echo "=== Final go.mod ==="
           cat go.mod
 
+      - name: Diagnose Go epoll implementation
+        run: |
+          echo "=== Go version ==="
+          go version
+
+          echo "=== Runtime epoll implementation ==="
+          grep -R -n -E "epoll_pwait|epollwait|SYS_EPOLL" \
+            "$(go env GOROOT)/src/runtime" \
+            "$(go env GOROOT)/src/internal" || true
+
       - name: Test KindleCron compatibility build
         working-directory: kron-compat
         shell: bash
