@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"context"
 	"os/exec"
 	"os/signal"
 	"unsafe"
@@ -883,4 +884,40 @@ func cmdPipeTest() {
     }
 
     fmt.Println("PASS: StdoutPipe und Scanner funktionieren")
+}
+
+func cmdContextTest() {
+    fmt.Println("CommandContext-Test startet ...")
+
+    ctx, cancel := context.WithTimeout(
+        context.Background(),
+        2*time.Second,
+    )
+    defer cancel()
+
+    cmd := exec.CommandContext(ctx, "/bin/sleep", "10")
+
+    start := time.Now()
+    err := cmd.Run()
+    elapsed := time.Since(start)
+
+    if err == nil {
+        fmt.Println("FAIL: Prozess wurde nicht abgebrochen")
+        return
+    }
+
+    if ctx.Err() != context.DeadlineExceeded {
+        fmt.Printf("FAIL: Unerwarteter Kontextstatus: %v\n", ctx.Err())
+        fmt.Printf("Prozessfehler: %v\n", err)
+        return
+    }
+
+    if cmd.ProcessState == nil {
+        fmt.Println("FAIL: Kein Prozessstatus vorhanden")
+        return
+    }
+
+    fmt.Printf("Prozess nach %.1f Sekunden beendet\n", elapsed.Seconds())
+    fmt.Printf("Prozessstatus: %v\n", cmd.ProcessState)
+    fmt.Println("PASS: CommandContext hat den Prozess abgebrochen")
 }
