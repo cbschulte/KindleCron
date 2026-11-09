@@ -839,3 +839,48 @@ func cmdSignalTest() {
         fmt.Println("FAIL: Zeitüberschreitung beim Signalempfang")
     }
 }
+
+func cmdPipeTest() {
+    fmt.Println("Pipe-Test startet ...")
+
+    cmd := exec.Command("/bin/echo", "KronPipeTest")
+
+    stdout, err := cmd.StdoutPipe()
+    if err != nil {
+        fmt.Printf("FAIL: StdoutPipe: %v\n", err)
+        return
+    }
+
+    if err := cmd.Start(); err != nil {
+        fmt.Printf("FAIL: Start: %v\n", err)
+        return
+    }
+
+    scanner := bufio.NewScanner(stdout)
+    lines := 0
+
+    for scanner.Scan() {
+        fmt.Printf("Empfangen: %s\n", scanner.Text())
+        lines++
+    }
+
+    scanErr := scanner.Err()
+    waitErr := cmd.Wait()
+
+    if scanErr != nil {
+        fmt.Printf("FAIL: Scanner: %v\n", scanErr)
+        return
+    }
+
+    if waitErr != nil {
+        fmt.Printf("FAIL: Wait: %v\n", waitErr)
+        return
+    }
+
+    if lines != 1 {
+        fmt.Printf("FAIL: Erwartete 1 Zeile, erhalten: %d\n", lines)
+        return
+    }
+
+    fmt.Println("PASS: StdoutPipe und Scanner funktionieren")
+}
