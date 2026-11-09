@@ -748,6 +748,7 @@ func cmdEpollTest() {
         fmt.Printf("FAIL: EpollWait: %v\n", err)
     } else {
         fmt.Printf("PASS: EpollWait, Ereignisse: %d\n", n)
+		fmt.Println("MARKER: EPOLL-TEST-V2")
     }
 
     // Test 2: epoll_pwait direkt aufrufen
