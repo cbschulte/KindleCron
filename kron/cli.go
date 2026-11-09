@@ -728,3 +728,24 @@ func cmdTimerTest() {
 
 	fmt.Println("PASS: Timer wurde ausgelöst")
 }
+
+func cmdEpollTest() {
+    fmt.Println("Direkter epoll-Test startet ...")
+
+    fd, err := syscall.EpollCreate1(0)
+    if err != nil {
+        fmt.Printf("FAIL: EpollCreate1: %v\n", err)
+        return
+    }
+    defer syscall.Close(fd)
+
+    events := make([]syscall.EpollEvent, 4)
+
+    n, err := syscall.EpollWait(fd, events, 0)
+    if err != nil {
+        fmt.Printf("FAIL: EpollWait: %v\n", err)
+        return
+    }
+
+    fmt.Printf("PASS: EpollWait erfolgreich, Ereignisse: %d\n", n)
+}
