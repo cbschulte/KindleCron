@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"os/exec"
+	"os/signal"
 	"unsafe"
 )
 
@@ -813,4 +814,28 @@ func cmdExecFileTest() {
 
     fmt.Printf("Dateiinhalt: %s", data)
     fmt.Println("PASS: Datei erstellt, beschrieben und gelesen")
+}
+
+func cmdSignalTest() {
+    fmt.Println("Signal-Test startet ...")
+
+    signals := make(chan os.Signal, 1)
+    signal.Notify(signals, syscall.SIGTERM)
+    defer signal.Stop(signals)
+
+    if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
+        fmt.Printf("FAIL: Signal senden: %v\n", err)
+        return
+    }
+
+    timer := time.NewTimer(3 * time.Second)
+    defer timer.Stop()
+
+    select {
+    case sig := <-signals:
+        fmt.Printf("Signal empfangen: %v\n", sig)
+        fmt.Println("PASS: Signalbehandlung funktioniert")
+    case <-timer.C:
+        fmt.Println("FAIL: Zeitüberschreitung beim Signalempfang")
+    }
 }
