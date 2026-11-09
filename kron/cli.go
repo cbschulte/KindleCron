@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"os/exec"
+	"unsafe"
 )
 
 const (
@@ -741,11 +742,28 @@ func cmdEpollTest() {
 
     events := make([]syscall.EpollEvent, 4)
 
+    // Test 1: klassisches epoll_wait
     n, err := syscall.EpollWait(fd, events, 0)
     if err != nil {
         fmt.Printf("FAIL: EpollWait: %v\n", err)
-        return
+    } else {
+        fmt.Printf("PASS: EpollWait, Ereignisse: %d\n", n)
     }
 
-    fmt.Printf("PASS: EpollWait erfolgreich, Ereignisse: %d\n", n)
+    // Test 2: epoll_pwait direkt aufrufen
+    r1, _, errno := syscall.RawSyscall6(
+        syscall.SYS_EPOLL_PWAIT,
+        uintptr(fd),
+        uintptr(unsafe.Pointer(&events[0])),
+        uintptr(len(events)),
+        uintptr(0),
+        uintptr(0),
+        uintptr(0),
+    )
+
+    if errno != 0 {
+        fmt.Printf("FAIL: epoll_pwait, errno: %d (%v)\n", errno, errno)
+    } else {
+        fmt.Printf("PASS: epoll_pwait, Ereignisse: %d\n", r1)
+    }
 }
