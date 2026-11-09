@@ -174,6 +174,9 @@ func main() {
 
 	// commands that need neither the data directory nor its side effects
 	switch cmd {
+	case "context-test":
+	    cmdContextTest()
+	    return		
 	case "pipe-test":
 	    cmdPipeTest()
 	    return
