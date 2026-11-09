@@ -21,6 +21,42 @@ jobs:
         with:
           go-version: '1.21.13'
 
+      - name: Patch Go ARM epoll compatibility
+        run: |
+          FILE="$(go env GOROOT)/src/runtime/internal/syscall/defs_linux_arm.go"
+
+          echo "=== Original ARM definition ==="
+          grep "SYS_EPOLL_PWAIT" "$FILE"
+
+          python3 - "$FILE" <<'PY'
+          import re
+          import sys
+
+          path = sys.argv[1]
+
+          with open(path, "r") as f:
+              source = f.read()
+
+          source, count = re.subn(
+              r"(SYS_EPOLL_PWAIT\s*=\s*)346\b",
+              r"\g<1>252",
+              source
+          )
+
+          if count != 1:
+              raise SystemExit(
+                  "ERROR: Expected exactly one ARM definition, found %d" % count
+              )
+
+          with open(path, "w") as f:
+              f.write(source)
+
+          print("PASS: ARM epoll syscall changed from 346 to 252")
+          PY
+
+          echo "=== Patched ARM definition ==="
+          grep "SYS_EPOLL_PWAIT" "$FILE"
+
       - name: Verify Go version
         run: |
           go version
