@@ -768,3 +768,16 @@ func cmdEpollTest() {
         fmt.Printf("PASS: epoll_pwait, Ereignisse: %d\n", r1)
     }
 }
+
+func cmdExecTest() {
+    fmt.Println("Exec-Test startet ...")
+
+    output, err := exec.Command("/bin/echo", "KronExecTest").Output()
+    if err != nil {
+        fmt.Printf("FAIL: exec.Command: %v\n", err)
+        return
+    }
+
+    fmt.Printf("Ausgabe: %s", output)
+    fmt.Println("PASS: Prozess gestartet und Ausgabe gelesen")
+}
