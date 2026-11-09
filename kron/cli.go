@@ -921,3 +921,40 @@ func cmdContextTest() {
     fmt.Printf("Prozessstatus: %v\n", cmd.ProcessState)
     fmt.Println("PASS: CommandContext hat den Prozess abgebrochen")
 }
+
+func cmdProcessGroupTest() {
+    fmt.Println("Process-Group-Test startet ...")
+
+    cmd := exec.Command("/bin/sh", "-c", "/bin/sleep 10 & wait")
+    cmd.SysProcAttr = &syscall.SysProcAttr{
+        Setpgid: true,
+    }
+
+    if err := cmd.Start(); err != nil {
+        fmt.Printf("FAIL: Start: %v\n", err)
+        return
+    }
+
+    fmt.Printf("Shell-Prozess gestartet: PID %d\n", cmd.Process.Pid)
+
+    timer := time.NewTimer(500 * time.Millisecond)
+    <-timer.C
+    timer.Stop()
+
+    // Negativer PID: Signal an die gesamte Prozessgruppe.
+    err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+    if err != nil {
+        fmt.Printf("FAIL: Prozessgruppe beenden: %v\n", err)
+        _ = cmd.Process.Kill()
+        _ = cmd.Wait()
+        return
+    }
+
+    waitErr := cmd.Wait()
+    if waitErr == nil {
+        fmt.Println("FAIL: Shell-Prozess unerwartet regulär beendet")
+        return
+    }
+
+    fmt.Println("PASS: Prozessgruppe beendet")
+}
