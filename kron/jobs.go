@@ -288,37 +288,55 @@ func (entry job) effectiveTimeout() time.Duration {
 // called with the command just before it starts and must return a deregister
 // func, run when the command finishes; this lets the daemon track the live
 // process so it can terminate it on shutdown. register may be nil (CLI path).
+
 func runJob(entry job, register func(*exec.Cmd) func()) int {
+	if register == nil {
+		return runJobWithStart(entry, nil)
+	}
+
+	return runJobWithStart(entry, func(cmd *exec.Cmd) (func(), error) {
+		if err := cmd.Start(); err != nil {
+			return nil, err
+		}
+		return register(cmd), nil
+	})
+}
+
+// runJobWithStart executes a job. If start is non-nil, it is responsible
+// for starting the process and returns a deregister function.
+func runJobWithStart(entry job, start func(*exec.Cmd) (func(), error)) int {
 	logf("run '%s': %s", entry.name, entry.command)
 	timeout := entry.effectiveTimeout()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "sh", "-c", entry.command)
-	// Run in its own process group and, on timeout (ctx cancel), kill the WHOLE
-	// group rather than just the sh process. Otherwise the actual command (a
-	// grandchild) is orphaned and keeps running past the timeout. This also makes
-	// the tracked process killable as a group on shutdown.
 	setProcessGroup(cmd)
 	cmd.Cancel = func() error {
 		killProcessGroup(cmd)
 		return nil
 	}
+
 	if file, err := os.Create(logPath(entry.name)); err == nil {
 		cmd.Stdout, cmd.Stderr = file, file
 		defer file.Close()
 	}
-	if register != nil {
-		// Start explicitly so the process exists before register, then wait.
-		if err := cmd.Start(); err != nil {
-			logf("done '%s' (start failed: %v)", entry.name, err)
-			return -1
-		}
-		deregister := register(cmd)
-		err := cmd.Wait()
-		deregister()
+
+	if start == nil {
+		err := cmd.Run()
 		return jobExitCode(ctx, entry, timeout, err)
 	}
-	err := cmd.Run()
+
+	deregister, err := start(cmd)
+	if err != nil {
+		logf("done '%s' (start failed: %v)", entry.name, err)
+		return -1
+	}
+	if deregister != nil {
+		defer deregister()
+	}
+
+	err = cmd.Wait()
 	return jobExitCode(ctx, entry, timeout, err)
 }
 
