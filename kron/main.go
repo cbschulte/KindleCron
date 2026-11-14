@@ -256,6 +256,8 @@ func main() {
 	switch cmd {
 	case "lock-test":
 		cmdLockTest()
+	case "runjob-register-test":
+		cmdRunJobRegisterTest()
 	case "runjob-test":
    		cmdRunJobTest()
 	case "runjob-timeout-test":
