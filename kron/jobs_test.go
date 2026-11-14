@@ -168,7 +168,10 @@ func TestReadyToSuspendAbortsWhileJobRunning(t *testing.T) {
 	setLastRun("slow", time.Now()) // next due far out
 
 	dm := newDaemon()
-	dm.jobDispatched() // pretend a job is running
+	_, ok := dm.jobDispatched("slow")
+	if !ok {
+	    t.Fatal("expected job dispatch to succeed")
+	}
 	dm.onReadyToSuspend()
 
 	calls := readCalls(t, logp)
