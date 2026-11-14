@@ -174,6 +174,8 @@ func main() {
 
 	// commands that need neither the data directory nor its side effects
 	switch cmd {
+	case "runjob-register-test":
+	    cmdRunJobRegisterTest()
 	case "runjob-timeout-test":
 	    cmdRunJobTimeoutTest()		
 	case "runjob-test":
