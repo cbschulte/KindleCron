@@ -1004,3 +1004,50 @@ func cmdRunJobTest() {
 
     fmt.Println("PASS: Fehlercode korrekt erkannt")
 }
+
+func cmdRunJobTimeoutTest() {
+    fmt.Println("RunJob-Timeout-Test startet ...")
+
+    entry := job{
+        name:    "kron-timeout-proof",
+        command: "echo TimeoutTestStarted; sleep 10; echo TimeoutTestFinished",
+        enabled: true,
+        timeout: 2 * time.Second,
+    }
+
+    started := time.Now()
+    exitCode := runJob(entry, nil)
+    elapsed := time.Since(started)
+
+    fmt.Printf("Exit-Code: %d\n", exitCode)
+    fmt.Printf("Laufzeit: %s\n", elapsed)
+
+    if exitCode != -1 {
+        fmt.Println("FAIL: Timeout wurde nicht als -1 gemeldet")
+        return
+    }
+
+    if elapsed > 6*time.Second {
+        fmt.Println("FAIL: Timeout hat zu lange gedauert")
+        return
+    }
+
+    logPath := logPath(entry.name)
+    data, err := os.ReadFile(logPath)
+    if err != nil {
+        fmt.Printf("FAIL: Logdatei konnte nicht gelesen werden: %v\n", err)
+        return
+    }
+
+    if !strings.Contains(string(data), "TimeoutTestStarted") {
+        fmt.Println("FAIL: Startmeldung fehlt im Log")
+        return
+    }
+
+    if strings.Contains(string(data), "TimeoutTestFinished") {
+        fmt.Println("FAIL: Prozess lief nach dem Timeout weiter")
+        return
+    }
+
+    fmt.Println("PASS: Timeout erkannt, Prozess beendet und Log geprüft")
+}
