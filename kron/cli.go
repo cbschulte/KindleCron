@@ -1051,3 +1051,73 @@ func cmdRunJobTimeoutTest() {
 
     fmt.Println("PASS: Timeout erkannt, Prozess beendet und Log geprüft")
 }
+
+func cmdRunJobRegisterTest() {
+    fmt.Println("RunJob-Register-Test startet ...")
+
+    entry := job{
+        name:    "kron-register-proof",
+        command: "echo KronRegisterTest; exit 0",
+        enabled: true,
+        timeout: 10 * time.Second,
+    }
+
+    registerCalls := 0
+    deregisterCalls := 0
+    processSeen := false
+
+    register := func(cmd *exec.Cmd) func() {
+        registerCalls++
+
+        if cmd.Process != nil && cmd.Process.Pid > 0 {
+            processSeen = true
+            fmt.Printf("Register: Prozess gestartet (PID %d)\n", cmd.Process.Pid)
+        } else {
+            fmt.Println("Register: FEHLER - kein gestarteter Prozess sichtbar")
+        }
+
+        return func() {
+            deregisterCalls++
+            fmt.Println("Deregister: Prozess abgemeldet")
+        }
+    }
+
+    exitCode := runJob(entry, register)
+
+    fmt.Printf("Exit-Code: %d\n", exitCode)
+    fmt.Printf("Register-Aufrufe: %d\n", registerCalls)
+    fmt.Printf("Deregister-Aufrufe: %d\n", deregisterCalls)
+
+    if exitCode != 0 {
+        fmt.Println("FAIL: Job war nicht erfolgreich")
+        return
+    }
+
+    if registerCalls != 1 {
+        fmt.Println("FAIL: Register wurde nicht genau einmal aufgerufen")
+        return
+    }
+
+    if !processSeen {
+        fmt.Println("FAIL: Register hat keinen gestarteten Prozess gesehen")
+        return
+    }
+
+    if deregisterCalls != 1 {
+        fmt.Println("FAIL: Deregister wurde nicht genau einmal aufgerufen")
+        return
+    }
+
+    data, err := os.ReadFile(logPath(entry.name))
+    if err != nil {
+        fmt.Printf("FAIL: Logdatei konnte nicht gelesen werden: %v\n", err)
+        return
+    }
+
+    if !strings.Contains(string(data), "KronRegisterTest") {
+        fmt.Println("FAIL: Ausgabe fehlt im Job-Log")
+        return
+    }
+
+    fmt.Println("PASS: Register, Prozessstart, Deregister und Job-Log funktionieren")
+}
