@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -53,21 +54,35 @@ type daemon struct {
 	// race window where onReadyToSuspend could suspend on a just-started job).
 	// `processes` holds the live process for each running job (registered once it
 	// has actually started) so shutdown can terminate them. Guarded by mu.
-	mu        sync.Mutex
-	pending   int
-	processes map[int]*exec.Cmd
-	nextJobID int
+	mu          sync.Mutex
+	pending     int
+	processes   map[int]*exec.Cmd
+	nextJobID   int
+	stopping    bool
+	pendingJobs map[string]bool
 }
 
 // jobDispatched marks a job as dispatched (about to run) and returns its id. Call
 // synchronously before starting the goroutine.
-func (dm *daemon) jobDispatched() int {
+func (dm *daemon) jobDispatched(name string) (int, bool) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
+
+	if dm.stopping || dm.pendingJobs[name] {
+		return 0, false
+	}
+
+	if dm.pendingJobs == nil {
+		dm.pendingJobs = make(map[string]bool)
+	}
+
+	dm.pendingJobs[name] = true
 	dm.pending++
+
 	id := dm.nextJobID
 	dm.nextJobID++
-	return id
+
+	return id, true
 }
 
 // jobProcessStarted records the live process for a dispatched job.
@@ -81,11 +96,16 @@ func (dm *daemon) jobProcessStarted(id int, cmd *exec.Cmd) {
 }
 
 // jobFinished clears a job's tracking (both the pending count and any process).
-func (dm *daemon) jobFinished(id int) {
+func (dm *daemon) jobFinished(id int, name string) {
 	dm.mu.Lock()
-	dm.pending--
+	defer dm.mu.Unlock()
+
+	if dm.pending > 0 {
+		dm.pending--
+	}
+
 	delete(dm.processes, id)
-	dm.mu.Unlock()
+	delete(dm.pendingJobs, name)
 }
 
 // anyJobRunning reports whether any job is dispatched and not yet finished. This
@@ -109,11 +129,17 @@ func (dm *daemon) hasRunningProcess() bool {
 // so jobs do not survive the daemon as orphans. Returns the number killed.
 func (dm *daemon) killRunningJobs() int {
 	dm.mu.Lock()
+
+	// No process may start after this point.
+	dm.stopping = true
+
 	running := make([]*exec.Cmd, 0, len(dm.processes))
 	for _, cmd := range dm.processes {
 		running = append(running, cmd)
 	}
+
 	dm.mu.Unlock()
+
 	killed := 0
 	for _, cmd := range running {
 		if killProcessGroup(cmd) {
@@ -346,43 +372,55 @@ func (dm *daemon) onReadyToSuspend() {
 // could not answer powerd and the device would suspend mid-job. last-run is
 // committed BEFORE the goroutine starts so the same job is not re-dispatched on the
 // next timer tick while it is still running.
+
 func (dm *daemon) dispatchDue() {
 	now := time.Now()
+
 	for _, path := range jobFiles() {
 		entry := readJob(path)
 		if !entry.enabled || entry.command == "" || entry.schedErr != nil {
 			continue
 		}
+
 		last := getLastRun(entry.name)
 		if !entry.sched.isDue(last, entry.mtime, now) {
 			continue
 		}
-		// Commit grid/state now, synchronously, so re-evaluation won't re-fire it.
-		if entry.sched.kind == kindOnce {
-			os.Remove(path)
-			os.Remove(lastPath(entry.name))
-			logf("one-shot '%s' fired and removed", entry.name)
-		} else {
-			setLastRun(entry.name, entry.sched.fireStamp(last, entry.mtime, now))
+
+		id, accepted := dm.jobDispatched(entry.name)
+		if !accepted {
+			continue
 		}
-		id := dm.jobDispatched() // synchronous: anyJobRunning() true immediately
+
 		once := entry.sched.kind == kindOnce
-		go func(entry job, id int, once bool) {
-			defer dm.jobFinished(id)
-			runJob(entry, func(cmd *exec.Cmd) func() {
-				dm.jobProcessStarted(id, cmd)
-				// Record the process-group id (== leader pid) so an external
-				// `kron kill-jobs` can terminate this job even if the daemon later
-				// dies uncleanly and its in-memory tracking is lost.
-				writeJobPid(entry.name, cmd.Process.Pid)
-				return func() { os.Remove(jobPidPath(entry.name)) }
+
+		go func(entry job, id int, once bool, last time.Time, now time.Time, path string) {
+			defer dm.jobFinished(id, entry.name)
+
+			started := false
+
+			runJobWithStart(entry, func(cmd *exec.Cmd) (func(), error) {
+				return dm.startJobProcess(id, entry.name, cmd, func() {
+					started = true
+
+					// Commit the schedule only after the process has started.
+					if once {
+						_ = os.Remove(path)
+						_ = os.Remove(lastPath(entry.name))
+						logf("one-shot '%s' fired and removed", entry.name)
+					} else {
+						setLastRun(
+							entry.name,
+							entry.sched.fireStamp(last, entry.mtime, now),
+						)
+					}
+				})
 			})
-			if once {
-				// The one-shot already removed its .job and .last; drop the log it
-				// just wrote too, so a self-removing job leaves nothing behind.
-				os.Remove(logPath(entry.name))
+
+			if once && started {
+				_ = os.Remove(logPath(entry.name))
 			}
-		}(entry, id, once)
+		}(entry, id, once, last, now, path)
 	}
 }
 
@@ -475,4 +513,39 @@ func armRTC(delta int) {
 		time.Sleep(150 * time.Millisecond)
 	}
 	logf("rtc arm FAILED after %d attempts: %v (delta=%ds)", armAttempts, err, delta)
+}
+
+func (dm *daemon) startJobProcess(
+	id int,
+	name string,
+	cmd *exec.Cmd,
+	onStarted func(),
+) (func(), error) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	if dm.stopping {
+		return nil, fmt.Errorf("daemon is shutting down")
+	}
+
+	// Keep the mutex locked across Start and registration.
+	// Shutdown therefore either sees this process or prevents its start.
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	if dm.processes == nil {
+		dm.processes = make(map[int]*exec.Cmd)
+	}
+	dm.processes[id] = cmd
+
+	writeJobPid(name, cmd.Process.Pid)
+
+	if onStarted != nil {
+		onStarted()
+	}
+
+	return func() {
+		_ = os.Remove(jobPidPath(name))
+	}, nil
 }
