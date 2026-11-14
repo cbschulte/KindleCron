@@ -253,7 +253,11 @@ func main() {
 
 	switch cmd {
 	case "lock-test":
-		cmdLockTest()		
+		cmdLockTest()
+	case "runjob-test":
+   		cmdRunJobTest()
+	case "runjob-timeout-test":
+	    cmdRunJobTimeoutTest()
 	case "daemon", "run":
 		runDaemon(eipsOut)
 	case "add":
