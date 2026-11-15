@@ -253,6 +253,77 @@ func TestDispatchDueTracksRunning(t *testing.T) {
 	}
 }
 
+func TestDispatchDueRemovesOneShotAfterStartEvenOnFailure(t *testing.T) {
+	defer withTempState(t)()
+
+	jobsDir = t.TempDir()
+	stateDir = t.TempDir()
+
+	name := "oneshot-exit7"
+	jobPath := filepath.Join(jobsDir, name+".job")
+	marker := filepath.Join(stateDir, "started.txt")
+
+	schedule := "once " + time.Now().Add(-time.Minute).Format("2006-01-02 15:04:05")
+	command := "echo started > " + marker + "; exit 7"
+	writeJobCmd(t, jobsDir, name, schedule, command)
+
+	dm := newDaemon()
+	dm.dispatchDue()
+
+	// Auf das Ende des Jobs warten.
+	deadline := time.Now().Add(3 * time.Second)
+	for dm.anyJobRunning() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if dm.anyJobRunning() {
+		t.Fatal("one-shot job did not finish in time")
+	}
+
+	// Beweisen, dass der Prozess tatsächlich gestartet wurde.
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("job did not execute its command: %v", err)
+	}
+
+	// Die .job-Datei muss trotz Exit-Code 7 entfernt worden sein.
+	if _, err := os.Stat(jobPath); !os.IsNotExist(err) {
+		t.Fatalf("one-shot .job file still exists after successful start; stat error = %v", err)
+	}
+}
+
+func TestDispatchDueKeepsOneShotWhenProcessStartFails(t *testing.T) {
+	defer withTempState(t)()
+
+	jobsDir = t.TempDir()
+	stateDir = t.TempDir()
+
+	name := "oneshot-start-fails"
+	jobPath := filepath.Join(jobsDir, name+".job")
+
+	schedule := "once " + time.Now().Add(-time.Minute).Format("2006-01-02 15:04:05")
+	writeJobCmd(t, jobsDir, name, schedule, "echo should-not-run")
+
+	// Ohne ein ausführbares "sh" kann cmd.Start() nicht erfolgreich sein.
+	// Das simuliert einen echten Fehler beim Prozessstart.
+	t.Setenv("PATH", t.TempDir())
+
+	dm := newDaemon()
+	dm.dispatchDue()
+
+	// Warten, bis der Dispatch-Versuch abgeschlossen ist.
+	deadline := time.Now().Add(3 * time.Second)
+	for dm.anyJobRunning() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if dm.anyJobRunning() {
+		t.Fatal("failed-start job did not finish dispatching in time")
+	}
+
+	// Ohne erfolgreichen Prozessstart darf die .job-Datei nicht verschwinden.
+	if _, err := os.Stat(jobPath); err != nil {
+		t.Fatalf("one-shot .job file was removed although process start failed: %v", err)
+	}
+}
+
 // writeJobCmd writes a .job with an explicit command, due-able via past mtime.
 func writeJobCmd(t *testing.T, dir, name, sched, cmd string) {
 	t.Helper()
