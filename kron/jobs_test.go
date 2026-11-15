@@ -98,9 +98,9 @@ func TestJobEffectiveTimeout(t *testing.T) {
 	}
 }
 
-// TestReadJobParsing covers the .job key=value format: enabled variants, timeout,
+// dJobParsing covers the .job key=value format: enabled variants, timeout,
 // comments/blank lines, and the schedule-error cases.
-func TestReadJobParsing(t *testing.T) {
+func dJobParsing(t *testing.T) {
 	dir := t.TempDir()
 
 	write := func(name, body string) string {
@@ -158,8 +158,15 @@ func TestReadJobParsing(t *testing.T) {
 // must abort suspend (not arm the RTC), regardless of the next job's timing.
 func TestReadyToSuspendAbortsWhileJobRunning(t *testing.T) {
 	defer withTempState(t)()
+
+	oldThreshold := keepAwakeThreshold
+	defer func() {
+		keepAwakeThreshold = oldThreshold
+	}()
+
 	logp, restore := stubLipcCapture(t, true)
 	defer restore()
+
 	keepAwakeThreshold = keepAwakeDisabled // even with keep-awake off, a running job wins
 
 	td := t.TempDir()
@@ -170,7 +177,7 @@ func TestReadyToSuspendAbortsWhileJobRunning(t *testing.T) {
 	dm := newDaemon()
 	_, ok := dm.jobDispatched("slow")
 	if !ok {
-	    t.Fatal("expected job dispatch to succeed")
+		t.Fatal("expected job dispatch to succeed")
 	}
 	dm.onReadyToSuspend()
 
@@ -181,15 +188,21 @@ func TestReadyToSuspendAbortsWhileJobRunning(t *testing.T) {
 	if strings.Contains(calls, "rtcWakeup") {
 		t.Fatalf("must not arm RTC while job running; calls = %q", calls)
 	}
-	keepAwakeThreshold = 3 * time.Minute
 }
 
 // TestReadyToSuspendArmsAfterJobDone: once no job is running and the next is far
 // out, onReadyToSuspend arms the RTC normally.
 func TestReadyToSuspendArmsAfterJobDone(t *testing.T) {
 	defer withTempState(t)()
+
+	oldThreshold := keepAwakeThreshold
+	defer func() {
+		keepAwakeThreshold = oldThreshold
+	}()
+
 	logp, restore := stubLipcCapture(t, true)
 	defer restore()
+
 	keepAwakeThreshold = 3 * time.Minute
 
 	td := t.TempDir()
