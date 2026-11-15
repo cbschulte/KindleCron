@@ -174,7 +174,7 @@ func runDaemon(eipsOut bool) {
 	logf("scheduler starting (data dir %s)", baseDir)
 	drawOrLog(eipsOut, "kron daemon started")
 
-	// Anchor never-run 'every' jobs to the daemon start by seeding a real last-run
+	// Anchor never-run 'every' jobs to the daemon start by seeding a real 
 	// stamp now. This makes the first run land one interval after start (intuitive)
 	// and turns the scheduling grid into a stable persisted timestamp rather than a
 	// value derived from the .job mtime or an in-memory start time.
@@ -369,9 +369,10 @@ func (dm *daemon) onReadyToSuspend() {
 // via the pending count, so the event loop stays responsive while a job runs. This
 // is what lets onReadyToSuspend keep the device awake (abortSuspend) for the whole
 // duration of a long job instead of the daemon blocking in cmd.Run(), where it
-// could not answer powerd and the device would suspend mid-job. last-run is
-// committed BEFORE the goroutine starts so the same job is not re-dispatched on the
-// next timer tick while it is still running.
+// could not answer powerd and the device would suspend mid-job. The schedule is 
+// committed only after the process has successfully started.
+// The pending-job tracking prevents the same job from being dispatched again
+// while its process is starting or running.
 
 func (dm *daemon) dispatchDue() {
 	now := time.Now()
