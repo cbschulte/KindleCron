@@ -264,7 +264,7 @@ func TestDispatchDueRemovesOneShotAfterStartEvenOnFailure(t *testing.T) {
 	marker := filepath.Join(stateDir, "started.txt")
 
 	schedule := "once " + time.Now().Add(-time.Minute).Format("2006-01-02 15:04:05")
-	command := "echo started > " + marker + "; exit 7"
+	command := "echo started >> " + marker + "; exit 7"
 	writeJobCmd(t, jobsDir, name, schedule, command)
 
 	dm := newDaemon()
@@ -287,6 +287,29 @@ func TestDispatchDueRemovesOneShotAfterStartEvenOnFailure(t *testing.T) {
 	// Die .job-Datei muss trotz Exit-Code 7 entfernt worden sein.
 	if _, err := os.Stat(jobPath); !os.IsNotExist(err) {
 		t.Fatalf("one-shot .job file still exists after successful start; stat error = %v", err)
+	}
+
+	// Simulate a daemon restart using the same filesystem.
+	dmAfterRestart := newDaemon()
+	dmAfterRestart.dispatchDue()
+	
+	deadline = time.Now().Add(3 * time.Second)
+	for dmAfterRestart.anyJobRunning() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	
+	if dmAfterRestart.anyJobRunning() {
+		t.Fatal("one-shot job was still running after simulated restart")
+	}
+	
+	// The one-shot must not execute a second time.
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("could not read execution marker: %v", err)
+	}
+	
+	if got := strings.Count(string(data), "started"); got != 1 {
+		t.Fatalf("one-shot executed %d times, want exactly 1", got)
 	}
 }
 
